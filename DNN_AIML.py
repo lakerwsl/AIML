@@ -15,6 +15,7 @@ from tensorflow.keras import optimizers
 from tensorflow.keras import metrics
 from tensorflow.keras import Model
 from tensorflow.keras.applications import resnet
+from sklearn.metrics import pairwise_distances
 
 class rotate_resize_crop(layers.Layer):
     def __init__(self, minsize, maxsize, rotation):
@@ -146,6 +147,39 @@ class AIML(keras.Model):
         }
 
 
+def heat_kernel(dist, sigma):
+  return np.exp(- (dist)/sigma)
+
+def AILaplacian(data, temperature, width, ai_augmenter, n_aug):
+  n=data.shape[0]
+  aug_data = np.array(data).reshape(n,data.shape[1]*data.shape[2])
+  for j in range(n_aug):
+    aug_data = np.concatenate((aug_data,np.array(ai_augmenter(data)).reshape(n,data.shape[1]*data.shape[2])), axis=0)
+  
+  dist_matrix = pairwise_distances(aug_data)
+  W=heat_kernel(dist_matrix, temperature)
+  int_W=np.zeros((n, n))
+  for i in range(n):
+    irange = range(i, i+n*(n_aug+1), n)
+    for j in range(n):
+      jrange = range(j, j+n*(n_aug+1), n)
+      int_W[i,j] = W[np.ix_(irange, jrange)].mean()
+  Dsum = int_W.sum(axis=1)
+  D = np.diag(Dsum)
+  L=D-int_W
+  D_tilde = np.diag(1/np.sqrt(D.diagonal()))
+  L = np.matmul(D_tilde, np.matmul( L , D_tilde ))
+  eigval, eigvec = np.linalg.eig(L)
+  
+  order = np.argsort(eigval)
+  K_eigenvectors = eigvec[:, order[1:(width + 1)]]
+#  KK_eigenvectors = np.zeros((n*(n_aug+1), width))
+  for k in range(width):
+    K_eigenvectors[:,k]=np.divide(K_eigenvectors[:,k],np.sqrt(Dsum))
+#    KK_eigenvectors[:,k]=np.repeat(np.divide(K_eigenvectors[:,k],Dsum),n_aug+1)
+  
+  return(K_eigenvectors.real)
+  
 
     
 input_shape = (28, 28, 1)
