@@ -1,3 +1,5 @@
+##The implementation here is modified version of code in https://github.com/beresandras/contrastive-classification-keras/tree/master.
+
 import tensorflow as tf
 import random
 import tensorflow_datasets as tfds
